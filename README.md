@@ -63,7 +63,7 @@ The workflow begins by loading and preprocessing historical launch statistics, l
 * **Type of models**:
     * Logistic Regression
     * Gradient Boosting
-    * SVC
+    * SVM
 * **Software used to implement the model**: Python 3.10.13, [Scikit-learn](https://github.com/scikit-learn/scikit-learn) v1.4.1.post1.
 
 ## Quantitative Analysis

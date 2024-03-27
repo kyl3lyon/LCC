@@ -25,7 +25,7 @@ The workflow begins by loading and preprocessing historical launch statistics, l
 
 | Name                  | Modeling Role | Measurement Level | Description                                                                                                                                                   |
 |-----------------------|---------------|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| launched              | Target        | Binary            | Indicates whether a launch has occurred.                                                                                                                      |
+| LAUNCHED              | Target        | Binary            | Indicates whether a launch has occurred.                                                                                                                      |
 | visibility            | Predictor     | Interval          | Average visibility in meters. Maximum value is 10km.                                                                                                          |
 | dew_point             | Predictor     | Ratio             | Atmospheric temperature below which water droplets begin to condense and dew can form. Units: Kelvin.                                                         |
 | feels_like            | Predictor     | Interval          | This temperature parameter accounts for the human perception of weather. Units: Kelvin.                                                                       |
@@ -60,7 +60,7 @@ The workflow begins by loading and preprocessing historical launch statistics, l
 `rain_1h`, `rain_3h`, `weather_main`, `weather_description`,
 `weather_icon`
 
-* **Column(s) used as target(s) in the final model**: `launched`
+* **Column(s) used as target(s) in the final model**: `LAUNCHED`
 * **Type of models**:
     * Logistic Regression
     * Gradient Boosting

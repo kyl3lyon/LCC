@@ -1,5 +1,4 @@
 # Launch Commit Criteria Prediction Model
-Launch Commit Criteria for Space Flight
 
 ### Overview
 This model predicts the probabilities of both weather-related Launch Commit Criteria (LCC) violations and launch attempts based on historical launch statistics and weather data. It aims to support launch scheduling decisions by providing insights into potential weather risks, aiding in the anticipation of LCC violations, and ultimately estimating the likelihood of a launch attempt.

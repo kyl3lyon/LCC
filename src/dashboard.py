@@ -1,9 +1,9 @@
 import streamlit as st
-from app.pages import nimbus, analytics
+from app.pages import analytics, nimlet
 
 # Define the pages
 PAGES = {
-    "Nimbus-1": nimbus,
+    "Nimlet-1": nimlet,
     "Analytics": analytics
 }
 

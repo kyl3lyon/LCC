@@ -260,3 +260,10 @@ def apply_manual_corrections(clean_launch_stats_df, clean_launch_forecast_df):
     forecast_df.loc[forecast_df['PAYLOAD'] == 'TROPICS-1', 'LAUNCH_VEHICLE'] = 'FALCON 9'
 
     return stats_df, forecast_df
+
+def save_datasets(clean_launch_stats_df, clean_launch_forecast_df):
+    '''Saves the processed datasets to the data directory.'''
+
+    # Save the processed datasets
+    clean_launch_stats_df.to_csv("data/processed/clean_launch_stats.csv", index=False)
+    clean_launch_forecast_df.to_csv("data/processed/clean_launch_forecast.csv", index=False)

@@ -1,18 +1,15 @@
 import streamlit as st
-from app.pages import overview, clouds, precipitation, lightning, analytics
+from app.pages import analytics, nimlet
 
 # Define the pages
 PAGES = {
-    "Overview": overview,
-    "Clouds": clouds,
-    "Precipitation": precipitation,
-    "Lightning": lightning,
+    "Nimlet-1": nimlet,
     "Analytics": analytics
 }
 
 def main():
     st.sidebar.title("Navigation")
-    choice = st.sidebar.selectbox("Go to", list(PAGES.keys()))
+    choice = st.sidebar.radio("Go to", list(PAGES.keys()))
 
     # Call the module associated with the chosen page
     page = PAGES[choice]

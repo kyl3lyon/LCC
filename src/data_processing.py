@@ -187,23 +187,26 @@ def process_launch_forecast_data(launch_forecast_df):
   return df
 
 def process_weather_hourly_data(weather_hourly_df):
-  """
-  Processes the weather_hourly_df DataFrame to ensure correct data types.
-  """
+    """
+    Processes the weather_hourly_df DataFrame to ensure correct data types.
+    """
 
-  # Generate deep copy
-  df = weather_hourly_df.copy(deep=True)
+    # Generate deep copy
+    df = weather_hourly_df.copy(deep=True)
 
-  # Preprocess 'dt_iso' to remove timezone information
-  df['dt_iso'] = df['dt_iso'].str.replace(r'\s+\+\d+\s+UTC', '', regex=True)
+    # Preprocess 'dt_iso' to remove timezone information
+    df['dt_iso'] = df['dt_iso'].str.replace(r'\s+\+\d+\s+UTC', '', regex=True)
 
-  # Convert 'dt_iso' to datetime
-  df['dt_iso'] = pd.to_datetime(df['dt_iso'], errors='coerce')
+    # Convert 'dt_iso' to datetime
+    df['dt_iso'] = pd.to_datetime(df['dt_iso'], errors='coerce')
 
-  # Convert 'dt' to a datetime format for easier manipulation (optional, based on need)
-  df['dt'] = pd.to_datetime(df['dt'], unit='s', utc=True).dt.tz_convert(None)
+    # Convert 'dt' to a datetime format for easier manipulation (optional, based on need)
+    df['dt'] = pd.to_datetime(df['dt'], unit='s', utc=True).dt.tz_convert(None)
 
-  return df
+    # Convert all column names to uppercase
+    df.columns = df.columns.str.upper()
+
+    return df
 
 def apply_manual_corrections(clean_launch_stats_df, clean_launch_forecast_df):
     """

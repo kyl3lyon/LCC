@@ -7,7 +7,11 @@ from data_processing import (
     add_image_data_to_dataset,
     save_datasets
 )
-from feature_engineering import aggregate_weather_for_launches, join_launch_stats_weather_with_actuals
+from feature_engineering import (
+    aggregate_weather_for_launches,
+    join_launch_stats_weather_with_actuals,
+    one_hot_encode_categorical_columns
+)
 from modeling import assign_modeling_roles, evaluate_models
 from utils import generate_evaluation_table
 
@@ -49,6 +53,7 @@ save_datasets(clean_launch_stats_df, clean_launch_forecast_df)
 # --- Feature Engineering ---
 launch_stats_and_weather_df = aggregate_weather_for_launches(clean_weather_hourly_df, clean_launch_stats_df)
 launch_data = join_launch_stats_weather_with_actuals(launch_stats_and_weather_df, clean_launch_forecast_df)
+launch_data = one_hot_encode_categorical_columns(launch_data)
 
 # --- Modeling ---
 X_train, X_test, y_train, y_test = assign_modeling_roles(launch_data)

@@ -6,7 +6,7 @@ def filter_weather_for_launch(weather_df, start_time, end_time):
     """
     Filters weather data for a given time window.
     """
-    return weather_df[(weather_df['dt_iso'] >= start_time) & (weather_df['dt_iso'] <= end_time)]
+    return weather_df[(weather_df['DT_ISO'] >= start_time) & (weather_df['DT_ISO'] <= end_time)]
 
 def calculate_average_weather(filtered_weather_df):
     """
@@ -14,25 +14,25 @@ def calculate_average_weather(filtered_weather_df):
     """
     if filtered_weather_df.empty:
         return pd.Series({
-            'visibility': None, 'dew_point': None, 'feels_like': None,
-            'temp_min': None, 'temp_max': None, 'pressure': None, 'humidity': None,
-            'wind_speed': None, 'wind_deg': None, 'clouds_all': None, 'rain_1h': None,
-            'rain_3h': None, 'weather_main': None, 'weather_description': None,
-            'weather_icon': None
+            'VISIBILITY': None, 'DEW_POINT': None, 'FEELS_LIKE': None,
+            'TEMP_MIN': None, 'TEMP_MAX': None, 'PRESSURE': None, 'HUMIDITY': None,
+            'WIND_SPEED': None, 'WIND_DEG': None, 'CLOUDS_ALL': None, 'RAIN_1H': None,
+            'RAIN_3H': None, 'WEATHER_MAIN': None, 'WEATHER_DESCRIPTION': None,
+            'WEATHER_ICON': None
         })
 
-    averages = filtered_weather_df[['visibility', 'dew_point', 'feels_like', 'temp_min', 'temp_max',
-                                    'pressure', 'humidity', 'wind_speed', 'wind_deg', 'clouds_all',
-                                    'rain_1h', 'rain_3h']].mean()
+    averages = filtered_weather_df[['VISIBILITY', 'DEW_POINT', 'FEELS_LIKE', 'TEMP_MIN', 'TEMP_MAX',
+                    'PRESSURE', 'HUMIDITY', 'WIND_SPEED', 'WIND_DEG', 'CLOUDS_ALL',
+                    'RAIN_1H', 'RAIN_3H']].mean()
 
     # Handling cases where there might not be a mode
-    most_common_main = filtered_weather_df['weather_main'].mode()
-    most_common_description = filtered_weather_df['weather_description'].mode()
-    most_common_icon = filtered_weather_df['weather_icon'].mode()
+    most_common_main = filtered_weather_df['WEATHER_MAIN'].mode()
+    most_common_description = filtered_weather_df['WEATHER_DESCRIPTION'].mode()
+    most_common_icon = filtered_weather_df['WEATHER_ICON'].mode()
 
-    averages['weather_main'] = most_common_main.iloc[0] if not most_common_main.empty else None
-    averages['weather_description'] = most_common_description.iloc[0] if not most_common_description.empty else None
-    averages['weather_icon'] = most_common_icon.iloc[0] if not most_common_icon.empty else None
+    averages['WEATHER_MAIN'] = most_common_main.iloc[0] if not most_common_main.empty else None
+    averages['WEATHER_DESCRIPTION'] = most_common_description.iloc[0] if not most_common_description.empty else None
+    averages['WEATHER_ICON'] = most_common_icon.iloc[0] if not most_common_icon.empty else None
 
     return averages
 
@@ -118,3 +118,30 @@ def find_missing_rows_after_join(launch_stats_and_weather_df, clean_launch_forec
     only_in_second = merged_outer[merged_outer['_merge'] == 'right_only']
 
     return only_in_first, only_in_second
+
+def one_hot_encode_categorical_columns(data):
+    """
+    One-hot encodes specified categorical variables and renames the columns according to predefined rules.
+    """
+    # One-hot encode categorical variables
+    data_encoded = pd.get_dummies(data, columns=['WEATHER_MAIN', 'WEATHER_DESCRIPTION', 'WEATHER_ICON'])
+
+    # Get the columns that start with 'WEATHER_MAIN_', 'WEATHER_DESCRIPTION_', and 'WEATHER_ICON_'
+    weather_main_cols = [col for col in data_encoded.columns if col.startswith('WEATHER_MAIN_')]
+    weather_desc_cols = [col for col in data_encoded.columns if col.startswith('WEATHER_DESCRIPTION_')]
+    weather_icon_cols = [col for col in data_encoded.columns if col.startswith('WEATHER_ICON_')]
+
+    # Rename the columns by removing the prefix, replacing spaces with underscores, and capitalizing the suffix
+    new_weather_main_cols = [col.replace('WEATHER_MAIN_', '').upper() for col in weather_main_cols]
+    new_weather_desc_cols = [col.replace('WEATHER_DESCRIPTION_', '').replace(' ', '_').upper() for col in weather_desc_cols]
+    new_weather_icon_cols = [col.replace('WEATHER_ICON_', '') for col in weather_icon_cols]
+
+    # Create a dictionary to map the old column names to the new column names
+    weather_main_rename_dict = dict(zip(weather_main_cols, new_weather_main_cols))
+    weather_desc_rename_dict = dict(zip(weather_desc_cols, new_weather_desc_cols))
+    weather_icon_rename_dict = dict(zip(weather_icon_cols, new_weather_icon_cols))
+
+    # Rename the columns in the DataFrame
+    data_encoded = data_encoded.rename(columns={**weather_main_rename_dict, **weather_desc_rename_dict, **weather_icon_rename_dict})
+
+    return data_encoded

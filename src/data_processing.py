@@ -1,4 +1,5 @@
 # --- Imports ---
+import os
 import pandas as pd
 import numpy as np
 
@@ -260,6 +261,42 @@ def apply_manual_corrections(clean_launch_stats_df, clean_launch_forecast_df):
     forecast_df.loc[forecast_df['PAYLOAD'] == 'TROPICS-1', 'LAUNCH_VEHICLE'] = 'FALCON 9'
 
     return stats_df, forecast_df
+
+def add_image_data_to_dataset(clean_launch_stats_df, goes_visible_folder_path, effective_shear_folder_path, watch_warning_folder_path, sbcape_cin_folder_path):
+    """
+    Enhances the launch_data DataFrame with paths to image data based on the END_LCC_EVAL date.
+
+    Parameters:
+    - launch_data: DataFrame containing the launch data.
+    - goes_visible_folder_path: Base path for GOES Visible images.
+    - effective_shear_folder_path: Base path for Effective Shear images.
+    - watch_warning_folder_path: Base path for Watch Warning images.
+    - sbcape_cin_folder_path: Base path for SBCAPE CIN images.
+
+    Returns:
+    - Enhanced DataFrame with image data paths.
+    """
+
+    # Convert END_LCC_EVAL to string in YYYYMMDD format
+    clean_launch_stats_df['END_LCC_EVAL_STR'] = clean_launch_stats_df['END_LCC_EVAL'].dt.strftime('%Y%m%d')
+
+    # Define a function to check for folder and contents
+    def folder_path_with_content(base_path, folder_name):
+        full_path = os.path.join(base_path, folder_name)
+        if os.path.isdir(full_path) and os.listdir(full_path):
+            return full_path
+        return ""
+
+    # Apply the function to get paths for each of the four types of images
+    clean_launch_stats_df['GOES_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(goes_visible_folder_path, x))
+    clean_launch_stats_df['SHEAR_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(effective_shear_folder_path, x))
+    clean_launch_stats_df['WARNIGN_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(watch_warning_folder_path, x))
+    clean_launch_stats_df['SBCAPE_CIN_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(sbcape_cin_folder_path, x))
+
+    # Drop the temporary column
+    clean_launch_stats_df.drop('END_LCC_EVAL_STR', axis=1, inplace=True)
+
+    return clean_launch_stats_df
 
 def save_datasets(clean_launch_stats_df, clean_launch_forecast_df):
     '''Saves the processed datasets to the data directory.'''

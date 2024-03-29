@@ -4,6 +4,7 @@ from data_processing import (
     process_launch_forecast_data,
     process_weather_hourly_data,
     apply_manual_corrections,
+    add_image_data_to_dataset,
     save_datasets
 )
 from feature_engineering import aggregate_weather_for_launches, join_launch_stats_weather_with_actuals
@@ -28,12 +29,21 @@ with open("config.yaml", "r") as f:
 launch_stats_df = pd.read_csv(f"{config['data']['raw_dir']}/{config['data']['launch_stats_file']}")
 launch_forecast_df = pd.read_csv(f"{config['data']['raw_dir']}/{config['data']['launch_forecast_file']}")
 weather_hourly_df = pd.read_csv(f"{config['data']['raw_dir']}/{config['data']['weather_hourly_file']}")
+goes_visible_folder_path = f"{config['data']['satellite_dir']}/{config['data']['goes_imagery_folder']}"
+effective_shear_folder_path = f"{config['data']['satellite_dir']}/{config['data']['shear_imagery_folder']}"
+watch_warning_folder_path = f"{config['data']['satellite_dir']}/{config['data']['warning_imagery_folder']}"
+sbcape_cin_folder_path = f"{config['data']['satellite_dir']}/{config['data']['sbcape_cin_imagery_folder']}"
 
 # --- Data Processing ---
 clean_launch_stats_df = process_launch_stats_data(launch_stats_df)
 clean_launch_forecast_df = process_launch_forecast_data(launch_forecast_df)
 clean_weather_hourly_df = process_weather_hourly_data(weather_hourly_df)
 clean_launch_stats_df, clean_launch_forecast_df = apply_manual_corrections(clean_launch_stats_df, clean_launch_forecast_df)
+
+clean_launch_stats_df = add_image_data_to_dataset(clean_launch_stats_df, goes_visible_folder_path,
+                                                  effective_shear_folder_path, watch_warning_folder_path,
+                                                  sbcape_cin_folder_path)
+
 save_datasets(clean_launch_stats_df, clean_launch_forecast_df)
 
 # --- Feature Engineering ---

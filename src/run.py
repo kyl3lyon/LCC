@@ -10,11 +10,11 @@ from data_processing import (
 from feature_engineering import (
     aggregate_weather_for_launches,
     join_launch_stats_weather_with_actuals,
-    one_hot_encode_categorical_columns
+    one_hot_encode_categorical_columns,
+    integrate_image_data
 )
 from modeling import assign_modeling_roles, evaluate_models
 from utils import generate_evaluation_table
-
 
 # --- Imports ---
 import yaml
@@ -33,10 +33,10 @@ with open("config.yaml", "r") as f:
 launch_stats_df = pd.read_csv(f"{config['data']['raw_dir']}/{config['data']['launch_stats_file']}")
 launch_forecast_df = pd.read_csv(f"{config['data']['raw_dir']}/{config['data']['launch_forecast_file']}")
 weather_hourly_df = pd.read_csv(f"{config['data']['raw_dir']}/{config['data']['weather_hourly_file']}")
-goes_visible_folder_path = f"{config['data']['satellite_dir']}/{config['data']['goes_imagery_folder']}"
-effective_shear_folder_path = f"{config['data']['satellite_dir']}/{config['data']['shear_imagery_folder']}"
-watch_warning_folder_path = f"{config['data']['satellite_dir']}/{config['data']['warning_imagery_folder']}"
-sbcape_cin_folder_path = f"{config['data']['satellite_dir']}/{config['data']['sbcape_cin_imagery_folder']}"
+goes_visible_folder_path = f"{config['data']['raw_satellite_dir']}/{config['data']['goes_imagery_folder']}"
+effective_shear_folder_path = f"{config['data']['raw_satellite_dir']}/{config['data']['shear_imagery_folder']}"
+watch_warning_folder_path = f"{config['data']['raw_satellite_dir']}/{config['data']['warning_imagery_folder']}"
+sbcape_cin_folder_path = f"{config['data']['raw_satellite_dir']}/{config['data']['sbcape_cin_imagery_folder']}"
 
 # --- Data Processing ---
 clean_launch_stats_df = process_launch_stats_data(launch_stats_df)
@@ -54,6 +54,8 @@ save_datasets(clean_launch_stats_df, clean_launch_forecast_df)
 launch_stats_and_weather_df = aggregate_weather_for_launches(clean_weather_hourly_df, clean_launch_stats_df)
 launch_data = join_launch_stats_weather_with_actuals(launch_stats_and_weather_df, clean_launch_forecast_df)
 launch_data = one_hot_encode_categorical_columns(launch_data)
+launch_data = integrate_image_data(launch_data, config)
+
 
 # --- Modeling ---
 X_train, X_test, y_train, y_test = assign_modeling_roles(launch_data)

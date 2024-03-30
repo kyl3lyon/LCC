@@ -151,3 +151,11 @@ def integrate_image_data(launch_data, config):
         assert len(launch_data[column_name]) == len(launch_data), f"Column length for {column_name} does not match DataFrame length."
     
     return launch_data
+
+def load_image_data_from_hdf5(hdf5_path, references):
+    """
+    Load image data from HDF5 file based on provided references.
+    """
+    with h5py.File(hdf5_path, 'r') as hdf_file:
+        image_data = [hdf_file[ref][:] if ref in hdf_file else np.zeros((7, 224, 224, 3)) for ref in references]
+    return np.array(image_data)

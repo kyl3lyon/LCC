@@ -13,3 +13,4 @@ data:
   shear_imagery_folder: "shear"
   warning_imagery_folder: "warning"
   sbcape_cin_imagery_folder: "sbcape"
+  hdf5_file: "launch_data_images.hdf5"

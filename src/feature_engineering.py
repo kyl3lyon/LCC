@@ -1,4 +1,8 @@
+# --- Module Level Imports ---
+from utils import process_or_load_image_series
+
 # --- Imports ---
+import os
 import pandas as pd
 
 # --- Functions ---
@@ -145,3 +149,10 @@ def one_hot_encode_categorical_columns(data):
     data_encoded = data_encoded.rename(columns={**weather_main_rename_dict, **weather_desc_rename_dict, **weather_icon_rename_dict})
 
     return data_encoded
+
+def integrate_image_data(launch_data, config):
+    imagery_types = ['GOES', 'SHEAR', 'WARNING', 'SBCAPE_CIN']
+    for imagery_type in imagery_types:
+        column_name = f"{imagery_type}_REF"  # Column for references
+        launch_data = process_or_load_image_series(launch_data, config, imagery_type, column_name)
+    return launch_data

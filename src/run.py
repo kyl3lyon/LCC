@@ -10,11 +10,10 @@ from data_processing import (
 from feature_engineering import (
     aggregate_weather_for_launches,
     join_launch_stats_weather_with_actuals,
-    one_hot_encode_categorical_columns,
-    integrate_image_data
+    one_hot_encode_categorical_columns
 )
 from modeling import assign_modeling_roles, evaluate_models
-from utils import generate_evaluation_table
+from utils import generate_evaluation_table, integrate_image_data
 
 # --- Imports ---
 import yaml

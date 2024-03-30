@@ -1,10 +1,12 @@
+# --- Module Level Imports ---
+from feature_engineering import load_image_series
+
 # --- Imports ---
 import os
 import h5py
 import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
-from tensorflow.keras.preprocessing.image import img_to_array, load_img
 
 # --- Functions ---
 def generate_evaluation_table(results_df):
@@ -27,39 +29,9 @@ def generate_evaluation_table(results_df):
 
     return markdown_table
 
-def load_image_series(folder_path):
-    """
-    Loads and processes images from a given folder path, targeting .gif files.
-    """
-    if pd.isnull(folder_path) or not folder_path:
-        print(f"Invalid folder path: {folder_path}")
-        return None
-    
-    image_series = []
-    if not os.path.exists(folder_path):
-        print(f"Folder does not exist: {folder_path}")
-        return None
-    
-    for filename in sorted(os.listdir(folder_path)):
-        if filename.endswith('.gif'):
-            image_path = os.path.join(folder_path, filename)
-            try:
-                image = load_img(image_path, target_size=(224, 224))
-                image = img_to_array(image)
-                image = image / 255.0
-                image_series.append(image)
-            except Exception as e:
-                print(f"Error loading image: {image_path} - {str(e)}")
-    
-    if not image_series:
-        print(f"No valid images found in folder: {folder_path}")
-        return None
-
-    return np.array(image_series)
-
 def process_images_and_save_to_hdf5(folder_path, hdf5_path, group_name):
     """
-    This function processes images from a folder and saves them to an HDF5 file.
+    Processes images from a folder and saves them to an HDF5 file.
     Returns a list indicating successful processing for each series.
     """
     processed_series = []
@@ -80,19 +52,26 @@ def process_images_and_save_to_hdf5(folder_path, hdf5_path, group_name):
 
     return success_flags
 
-def load_images_from_hdf5(hdf5_path, group_name):
+def load_images_from_hdf5(hdf5_path, group_name, data_length):
     """
-    This function loads processed image series from an HDF5 file.
+    Loads processed image series from an HDF5 file for a specific group.
+    If the group does not exist, it fills the corresponding DataFrame column with np.nan.
     """
     processed_series = []
     with h5py.File(hdf5_path, 'r') as hdf_file:
         if group_name in hdf_file:
-            for i in range(len(hdf_file[group_name])):
-                processed_series.append(np.array(hdf_file[f"{group_name}/{i}"]))
+            # If the group exists, load all image references
+            processed_series = [f"{group_name}/{i}" for i in range(len(hdf_file[group_name]))]
+        else:
+            # If the group does not exist, fill with np.nan
+            processed_series = [np.nan] * data_length  # Ensure length matches the DataFrame
+    
     return processed_series
 
 def get_number_of_datasets_in_group(hdf5_path, group_name):
-    """Helper function to count the number of datasets in a specific group in the HDF5 file."""
+    """
+    Helper function to count the number of datasets in a specific group in the HDF5 file.
+    """
     with h5py.File(hdf5_path, 'r') as hdf_file:
         if group_name in hdf_file:
             return len(hdf_file[group_name])
@@ -100,26 +79,75 @@ def get_number_of_datasets_in_group(hdf5_path, group_name):
 
 def process_or_load_image_series(data, config, imagery_type, column_name):
     """
-    This function processes or loads image series for a specific imagery type and updates the DataFrame accordingly.
+    Processes or loads image series for a specific imagery type and column name.
     """
-    imagery_folder_key = f"{imagery_type.lower()}_imagery_folder"
-    folder_name = config['data'][imagery_folder_key]
-    
     hdf5_path = os.path.join(config['data']['processed_dir'], 'launch_data_images.hdf5')
-    raw_dir_path = os.path.join(config['data']['raw_satellite_dir'], folder_name)
     
+    # Process images and save to HDF5 if not exists
     if not os.path.exists(hdf5_path):
-        print(f"Processing images and saving to {hdf5_path}.")
-        success_flags = process_images_and_save_to_hdf5(raw_dir_path, hdf5_path, imagery_type)
+        print(f"HDF5 file not found at {hdf5_path}. Attempting to process images.")
+        folder_path = os.path.join(config['data']['raw_satellite_dir'], config['data'][f"{imagery_type.lower()}_imagery_folder"])
+        success_flags = process_images_and_save_to_hdf5(folder_path, hdf5_path, imagery_type.lower())
+        # After processing, ensure each row in DataFrame has a placeholder
+        data[column_name] = [f"{imagery_type.lower()}/{i}" if flag else np.nan for i, flag in enumerate(success_flags)] + [np.nan] * (len(data) - len(success_flags))
     else:
-        print(f"Loading processed images from {hdf5_path} for {imagery_type}.")
-        # If loading, assume all were successful
-        success_flags = [True] * get_number_of_datasets_in_group(hdf5_path, imagery_type)
+        with h5py.File(hdf5_path, 'r') as hdf_file:
+            if imagery_type.lower() in hdf_file:
+                # Load data if the group exists
+                group_len = len(hdf_file[imagery_type.lower()])
+                # Ensure the column is filled out to match DataFrame's length
+                references = [f"{imagery_type.lower()}/{i}" for i in range(group_len)]
+                data[column_name] = references + [np.nan] * (len(data) - group_len)
+            else:
+                # If the group doesn't exist, fill the column with np.nan
+                print(f"Group for {imagery_type} not found. Filling {column_name} with np.nan.")
+                data[column_name] = [np.nan] * len(data)
 
-    # Extend success_flags to match DataFrame length, assuming False for any missing data
-    extended_success_flags = success_flags + [False] * (len(data) - len(success_flags))
-    
-    # Update DataFrame with references or placeholders
-    data[column_name] = [f"{imagery_type}/{i}" if flag else np.nan for i, flag in enumerate(extended_success_flags)]
+    # This ensures the DataFrame column has an entry for each row
+    assert len(data[column_name]) == len(data), "Column length does not match DataFrame length."
 
     return data
+
+def integrate_image_data(launch_data, config):
+    hdf5_path = os.path.join(config['data']['processed_dir'], 'launch_data_images.hdf5')
+    
+    imagery_types = ['GOES', 'SHEAR', 'WARNING', 'SBCAPE_CIN']
+    
+    # Check if the HDF5 file exists
+    if not os.path.exists(hdf5_path):
+        print(f"HDF5 file not found at {hdf5_path}. Attempting to process images.")
+        
+        # Process images for all imagery types and save to HDF5
+        for imagery_type in imagery_types:
+            column_name = f"{imagery_type}_REF"  # Column for references
+            folder_path = os.path.join(config['data']['raw_satellite_dir'], config['data'][f"{imagery_type.lower()}_imagery_folder"])
+            success_flags = process_images_and_save_to_hdf5(folder_path, hdf5_path, imagery_type.lower())
+            
+            # After processing, ensure each row in DataFrame has a placeholder
+            launch_data[column_name] = [f"{imagery_type.lower()}/{i}" if flag else np.nan for i, flag in enumerate(success_flags)] + [np.nan] * (len(launch_data) - len(success_flags))
+    
+    else:
+        print(f"HDF5 file found at {hdf5_path}. Loading image references.")
+        
+        # Load image references for all imagery types from HDF5
+        for imagery_type in imagery_types:
+            column_name = f"{imagery_type}_REF"  # Column for references
+            
+            with h5py.File(hdf5_path, 'r') as hdf_file:
+                if imagery_type.lower() in hdf_file:
+                    # Load data if the group exists
+                    group_len = len(hdf_file[imagery_type.lower()])
+                    # Ensure the column is filled out to match DataFrame's length
+                    references = [f"{imagery_type.lower()}/{i}" for i in range(group_len)]
+                    launch_data[column_name] = references + [np.nan] * (len(launch_data) - group_len)
+                else:
+                    # If the group doesn't exist, fill the column with np.nan
+                    print(f"Group for {imagery_type} not found. Filling {column_name} with np.nan.")
+                    launch_data[column_name] = [np.nan] * len(launch_data)
+    
+    # Ensure each DataFrame column has an entry for each row
+    for imagery_type in imagery_types:
+        column_name = f"{imagery_type}_REF"
+        assert len(launch_data[column_name]) == len(launch_data), f"Column length for {column_name} does not match DataFrame length."
+    
+    return launch_data

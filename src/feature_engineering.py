@@ -1,9 +1,8 @@
-# --- Module Level Imports ---
-from utils import process_or_load_image_series
-
 # --- Imports ---
 import os
+import numpy as np
 import pandas as pd
+from tensorflow.keras.preprocessing.image import img_to_array, load_img
 
 # --- Functions ---
 def filter_weather_for_launch(weather_df, start_time, end_time):
@@ -150,9 +149,32 @@ def one_hot_encode_categorical_columns(data):
 
     return data_encoded
 
-def integrate_image_data(launch_data, config):
-    imagery_types = ['GOES', 'SHEAR', 'WARNING', 'SBCAPE_CIN']
-    for imagery_type in imagery_types:
-        column_name = f"{imagery_type}_REF"  # Column for references
-        launch_data = process_or_load_image_series(launch_data, config, imagery_type, column_name)
-    return launch_data
+def load_image_series(folder_path):
+    """
+    Loads and processes images from a given folder path, targeting .gif files.
+    """
+    if pd.isnull(folder_path) or not folder_path:
+        print(f"Invalid folder path: {folder_path}")
+        return None
+    
+    image_series = []
+    if not os.path.exists(folder_path):
+        print(f"Folder does not exist: {folder_path}")
+        return None
+    
+    for filename in sorted(os.listdir(folder_path)):
+        if filename.endswith('.gif'):
+            image_path = os.path.join(folder_path, filename)
+            try:
+                image = load_img(image_path, target_size=(224, 224))
+                image = img_to_array(image)
+                image = image / 255.0
+                image_series.append(image)
+            except Exception as e:
+                print(f"Error loading image: {image_path} - {str(e)}")
+    
+    if not image_series:
+        print(f"No valid images found in folder: {folder_path}")
+        return None
+
+    return np.array(image_series)

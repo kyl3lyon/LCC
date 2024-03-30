@@ -1,4 +1,5 @@
 # --- Imports ---
+import os
 import pandas as pd
 import numpy as np
 
@@ -186,23 +187,26 @@ def process_launch_forecast_data(launch_forecast_df):
   return df
 
 def process_weather_hourly_data(weather_hourly_df):
-  """
-  Processes the weather_hourly_df DataFrame to ensure correct data types.
-  """
+    """
+    Processes the weather_hourly_df DataFrame to ensure correct data types.
+    """
 
-  # Generate deep copy
-  df = weather_hourly_df.copy(deep=True)
+    # Generate deep copy
+    df = weather_hourly_df.copy(deep=True)
 
-  # Preprocess 'dt_iso' to remove timezone information
-  df['dt_iso'] = df['dt_iso'].str.replace(r'\s+\+\d+\s+UTC', '', regex=True)
+    # Preprocess 'dt_iso' to remove timezone information
+    df['dt_iso'] = df['dt_iso'].str.replace(r'\s+\+\d+\s+UTC', '', regex=True)
 
-  # Convert 'dt_iso' to datetime
-  df['dt_iso'] = pd.to_datetime(df['dt_iso'], errors='coerce')
+    # Convert 'dt_iso' to datetime
+    df['dt_iso'] = pd.to_datetime(df['dt_iso'], errors='coerce')
 
-  # Convert 'dt' to a datetime format for easier manipulation (optional, based on need)
-  df['dt'] = pd.to_datetime(df['dt'], unit='s', utc=True).dt.tz_convert(None)
+    # Convert 'dt' to a datetime format for easier manipulation (optional, based on need)
+    df['dt'] = pd.to_datetime(df['dt'], unit='s', utc=True).dt.tz_convert(None)
 
-  return df
+    # Convert all column names to uppercase
+    df.columns = df.columns.str.upper()
+
+    return df
 
 def apply_manual_corrections(clean_launch_stats_df, clean_launch_forecast_df):
     """
@@ -260,6 +264,42 @@ def apply_manual_corrections(clean_launch_stats_df, clean_launch_forecast_df):
     forecast_df.loc[forecast_df['PAYLOAD'] == 'TROPICS-1', 'LAUNCH_VEHICLE'] = 'FALCON 9'
 
     return stats_df, forecast_df
+
+def add_image_data_to_dataset(clean_launch_stats_df, goes_visible_folder_path, effective_shear_folder_path, watch_warning_folder_path, sbcape_cin_folder_path):
+    """
+    Enhances the launch_data DataFrame with paths to image data based on the END_LCC_EVAL date.
+
+    Parameters:
+    - launch_data: DataFrame containing the launch data.
+    - goes_visible_folder_path: Base path for GOES Visible images.
+    - effective_shear_folder_path: Base path for Effective Shear images.
+    - watch_warning_folder_path: Base path for Watch Warning images.
+    - sbcape_cin_folder_path: Base path for SBCAPE CIN images.
+
+    Returns:
+    - Enhanced DataFrame with image data paths.
+    """
+
+    # Convert END_LCC_EVAL to string in YYYYMMDD format
+    clean_launch_stats_df['END_LCC_EVAL_STR'] = clean_launch_stats_df['END_LCC_EVAL'].dt.strftime('%Y%m%d')
+
+    # Define a function to check for folder and contents
+    def folder_path_with_content(base_path, folder_name):
+        full_path = os.path.join(base_path, folder_name)
+        if os.path.isdir(full_path) and os.listdir(full_path):
+            return full_path
+        return ""
+
+    # Apply the function to get paths for each of the four types of images
+    clean_launch_stats_df['GOES_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(goes_visible_folder_path, x))
+    clean_launch_stats_df['SHEAR_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(effective_shear_folder_path, x))
+    clean_launch_stats_df['WARNIGN_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(watch_warning_folder_path, x))
+    clean_launch_stats_df['SBCAPE_CIN_IMG_PATH'] = clean_launch_stats_df['END_LCC_EVAL_STR'].apply(lambda x: folder_path_with_content(sbcape_cin_folder_path, x))
+
+    # Drop the temporary column
+    clean_launch_stats_df.drop('END_LCC_EVAL_STR', axis=1, inplace=True)
+
+    return clean_launch_stats_df
 
 def save_datasets(clean_launch_stats_df, clean_launch_forecast_df):
     '''Saves the processed datasets to the data directory.'''

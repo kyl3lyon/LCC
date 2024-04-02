@@ -35,8 +35,6 @@ categorical_transformer = Pipeline(steps=[
 
 # Define the image features
 image_series_columns = ['GOES_REF', 'SHEAR_REF', 'WARNING_REF', 'SBCAPE_CIN_REF']
-X_image_train = {}
-X_image_test = {}
 
 preprocessor = ColumnTransformer(
     transformers=[
@@ -109,7 +107,7 @@ def assign_modeling_roles(launch_data, hdf5_path):
 
     # Define your predictors and target
     target = 'LAUNCHED'  # Update with your actual target column name
-    predictors = numeric_features + categorical_features
+    predictors = numeric_features + categorical_features + image_series_columns
 
     X = launch_data[predictors]
     y = launch_data[target]

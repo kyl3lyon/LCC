@@ -98,12 +98,18 @@ def assign_modeling_roles(launch_data, hdf5_path):
     """
     Assigns roles to the features and target for modeling.
     """
+    # Initialize valid_indices as a Series of True values for each row in launch_data
+    valid_indices = pd.Series(True, index=launch_data.index)
+
     # Filter launch_data based on the existence and length of image series
     for column in image_series_columns:
-        references = launch_data[column].dropna().tolist()
-        series_lengths = load_series_length(hdf5_path, references)
-        valid_indices = series_lengths == 7  # Assuming you want exactly 7 images in the series
-        launch_data = launch_data[launch_data[column].index.isin(np.where(valid_indices)[0])]
+        references = launch_data[column].dropna().tolist()  # Get the references and drop missing values
+        series_lengths = load_series_length(hdf5_path, references)  # Load the series lengths from HDF5
+        column_valid_indices = series_lengths == 7  # Exactly 7 images in the series
+        valid_indices &= launch_data[column].index.isin(np.where(column_valid_indices)[0])  # Filter based on valid indices
+
+    # Filter the launch_data based on the valid indices
+    launch_data = launch_data[valid_indices]
 
     # Define your predictors and target
     target = 'LAUNCHED'  # Update with your actual target column name

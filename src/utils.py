@@ -4,7 +4,6 @@ from feature_engineering import load_image_series
 # --- Imports ---
 import os
 import h5py
-import pandas as pd
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
@@ -67,15 +66,6 @@ def load_images_from_hdf5(hdf5_path, group_name, data_length):
             processed_series = [np.nan] * data_length  # Ensure length matches the DataFrame
     
     return processed_series
-
-def get_number_of_datasets_in_group(hdf5_path, group_name):
-    """
-    Helper function to count the number of datasets in a specific group in the HDF5 file.
-    """
-    with h5py.File(hdf5_path, 'r') as hdf_file:
-        if group_name in hdf_file:
-            return len(hdf_file[group_name])
-    return 0
 
 def process_or_load_image_series(data, config, imagery_type, column_name):
     """

@@ -2,13 +2,22 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score, f1_score
+from sklearn.metrics import (
+    accuracy_score, balanced_accuracy_score, roc_auc_score, f1_score
+)
 from sklearn.preprocessing import StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 import h5py
 import time
+from sklearn.ensemble import GradientBoostingClassifier
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import (
+    Conv2D, MaxPooling2D, Flatten,
+    Dense, concatenate, Input,
+    TimeDistributed, LSTM,
+)
 
 # --- Preprocessor Definition ---
 
@@ -18,7 +27,7 @@ numeric_features = ['VISIBILITY', 'DEW_POINT', 'FEELS_LIKE', 'TEMP_MIN', 'TEMP_M
                     'RAIN_1H', 'RAIN_3H'
 ]
 numeric_transformer = Pipeline(steps=[
-    ('imputer', SimpleImputer(strategy='mean')),
+    ('imputer', SimpleImputer(strategy='constant', fill_value=0)),
     ('scaler', StandardScaler())])
 
 # Define the categorical features
@@ -30,8 +39,7 @@ categorical_features = [
     '01d', '01n', '02d', '02n', '03d', '03n', '04d', '04n',
     '09d', '09n', '10d', '10n', '50d', '50n'
 ]
-categorical_transformer = Pipeline(steps=[
-    ('imputer', SimpleImputer(strategy='constant', fill_value='missing'))])
+categorical_transformer = 'passthrough'
 
 # Define the image features
 image_series_columns = ['GOES_REF', 'SHEAR_REF', 'WARNING_REF', 'SBCAPE_CIN_REF']
@@ -123,18 +131,109 @@ def assign_modeling_roles(launch_data, hdf5_path):
 
     return X_train, X_test, y_train.astype('int'), y_test.astype('int')
 
-def train_and_evaluate_model(model, X_train, X_test, y_train, y_test, X_image_train, X_image_test):
+def define_and_compile_cnn_model():
     """
-    Trains and evaluates a model on the provided data.
-
-    Parameters:
-    - model: The model to train and evaluate.
-    - X_train, X_test: DataFrames containing the training and testing features.
-    - y_train, y_test: Arrays containing the training and testing labels.
-    - X_image_train, X_image_test: Dictionaries containing the image data for training and testing.
+    Defines and compiles a Convolutional Neural Network (CNN) model with multiple image series inputs.
 
     Returns:
-    - A dictionary containing the evaluation metrics.
+    - cnn_model: The compiled CNN model.
+    """
+    # Define the input shape for a single image
+    image_shape = (224, 224, 3)
+
+    # Define the input layers and convolutional layers for each image series
+    input_layers = []
+    conv_layers = []
+    
+    # Create input and convolutional layers for each image series
+    for _ in range(len(image_series_columns)):
+        input_layer = Input(shape=(7,) + image_shape)
+        input_layers.append(input_layer)
+        
+        conv_layer = TimeDistributed(Conv2D(32, (3, 3), activation='relu'))(input_layer)
+        conv_layer = TimeDistributed(MaxPooling2D((2, 2)))(conv_layer)
+        conv_layer = TimeDistributed(Conv2D(64, (3, 3), activation='relu'))(conv_layer)
+        conv_layer = TimeDistributed(MaxPooling2D((2, 2)))(conv_layer)
+        conv_layer = TimeDistributed(Conv2D(64, (3, 3), activation='relu'))(conv_layer)
+        conv_layer = TimeDistributed(Flatten())(conv_layer)
+        
+        conv_layers.append(conv_layer)
+    
+    # Merge the convolutional layers
+    merged = concatenate(conv_layers)
+    
+    # Add a recurrent layer to process the sequence of images
+    lstm_layer = LSTM(64)(merged)
+    
+    dense_layer = Dense(64, activation='relu')(lstm_layer)
+    output_layer = Dense(1, activation='sigmoid')(dense_layer)
+    
+    # Define the CNN model
+    cnn_model = Model(inputs=input_layers, outputs=output_layer)
+    cnn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    
+    return cnn_model
+
+def define_gradient_boosting_model():
+    """
+    Defines a Gradient Boosting model.
+
+    Returns:
+    - gb_model: The Gradient Boosting model.
+    """
+    gb_model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+    return gb_model
+
+def train_and_evaluate_cnn_model(model, X_image_train, X_image_test, y_train, y_test):
+    """
+    Trains and evaluates a Convolutional Neural Network (CNN) model on the provided image data.
+
+    Parameters:
+    - model: The compiled CNN model.
+    - X_image_train, X_image_test: Dictionaries containing the loaded image data arrays for training and testing.
+    - y_train, y_test: The target values for training and testing.
+
+    Returns:
+    - metrics: A dictionary containing evaluation metrics for the CNN model.
+    - y_pred_cnn: The predicted values from the CNN model.
+    """
+    start_time = time.time()
+    
+    # Prepare the input data for training
+    X_train_inputs = [X_image_train[column].reshape((-1, 7, 224, 224, 3)) for column in image_series_columns]
+    X_test_inputs = [X_image_test[column].reshape((-1, 7, 224, 224, 3)) for column in image_series_columns]
+    
+    # Train the CNN model using image data
+    model.fit(X_train_inputs, y_train)
+    
+    # Make predictions on the test image data
+    y_pred_cnn = model.predict(X_test_inputs)
+    
+    end_time = time.time()
+    
+    # Calculate evaluation metrics for CNN model
+    metrics = {
+        'Accuracy': accuracy_score(y_test, y_pred_cnn.round()),
+        'Balanced Accuracy': balanced_accuracy_score(y_test, y_pred_cnn.round()),
+        'ROC AUC': roc_auc_score(y_test, y_pred_cnn),
+        'F1 Score': f1_score(y_test, y_pred_cnn.round()),
+        'Time Taken': end_time - start_time
+    }
+    
+    return metrics, y_pred_cnn
+
+def train_and_evaluate_gb_model(model, X_train, X_test, y_train, y_test):
+    """
+    Trains and evaluates a Gradient Boosting model on the provided data.
+
+    Parameters:
+    - model: The Gradient Boosting model.
+    - X_train, X_test: The training and testing feature data.
+    - y_train, y_test: The target values for training and testing.
+
+    Returns:
+    - metrics: A dictionary containing evaluation metrics for the Gradient Boosting model.
+    - y_pred_gb: The predicted values from the Gradient Boosting model.
     """
     start_time = time.time()
     
@@ -144,21 +243,44 @@ def train_and_evaluate_model(model, X_train, X_test, y_train, y_test, X_image_tr
     # Transform the test data using the fitted preprocessor
     X_test_preprocessed = preprocessor.transform(X_test)
     
-    # Train the model
+    # Train the Gradient Boosting model
     model.fit(X_train_preprocessed, y_train)
     
     # Make predictions on the test data
-    y_pred = model.predict(X_test_preprocessed)
+    y_pred_gb = model.predict(X_test_preprocessed)
     
     end_time = time.time()
     
-    # Calculate evaluation metrics
+    # Calculate evaluation metrics for Gradient Boosting model
     metrics = {
-        'Accuracy': accuracy_score(y_test, y_pred),
-        'Balanced Accuracy': balanced_accuracy_score(y_test, y_pred),
-        'ROC AUC': roc_auc_score(y_test, y_pred),
-        'F1 Score': f1_score(y_test, y_pred),
+        'Accuracy': accuracy_score(y_test, y_pred_gb),
+        'Balanced Accuracy': balanced_accuracy_score(y_test, y_pred_gb),
+        'ROC AUC': roc_auc_score(y_test, y_pred_gb),
+        'F1 Score': f1_score(y_test, y_pred_gb),
         'Time Taken': end_time - start_time
     }
     
-    return metrics
+    return metrics, y_pred_gb
+
+def ensemble_predictions(y_pred_cnn, y_pred_gb):
+    """
+    Combines predictions from a Convolutional Neural Network (CNN) and Gradient Boosting models.
+
+    Parameters:
+    - y_pred_cnn: Predictions from the CNN model.
+    - y_pred_gb: Predictions from the Gradient Boosting model.
+
+    Returns:
+    - y_pred_ensemble: Ensemble predictions based on a weighted average of the input predictions.
+    """
+
+    # Apply a weighted average to the predictions
+    cnn_weight = 0.7
+    gb_weight = 0.3
+    y_pred_ensemble = (cnn_weight * y_pred_cnn) + (gb_weight * y_pred_gb)
+
+    # Apply a threshold to convert probabilities to binary predictions
+    threshold = 0.5
+    y_pred_ensemble = (y_pred_ensemble >= threshold).astype(int)
+
+    return y_pred_ensemble

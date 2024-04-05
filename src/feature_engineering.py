@@ -144,10 +144,24 @@ def one_hot_encode_categorical_columns(data):
     weather_desc_rename_dict = dict(zip(weather_desc_cols, new_weather_desc_cols))
     weather_icon_rename_dict = dict(zip(weather_icon_cols, new_weather_icon_cols))
 
+    # Find the duplicate columns between weather main and weather description
+    duplicate_cols = set(new_weather_main_cols) & set(new_weather_desc_cols)
+
+    # Drop the duplicate columns from weather main
+    weather_main_rename_dict = {k: v for k, v in weather_main_rename_dict.items() if v not in duplicate_cols}
+
     # Rename the columns in the DataFrame
     data_encoded = data_encoded.rename(columns={**weather_main_rename_dict, **weather_desc_rename_dict, **weather_icon_rename_dict})
 
     return data_encoded
+
+def convert_bool_to_int(data):
+    """
+    Converts boolean columns to integers (0 and 1).
+    """
+    bool_columns = data.select_dtypes(include='bool').columns
+    data[bool_columns] = data[bool_columns].astype(int)
+    return data
 
 def load_image_series(folder_path):
     """

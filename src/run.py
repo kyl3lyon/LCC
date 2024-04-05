@@ -10,22 +10,28 @@ from data_processing import (
 from feature_engineering import (
     aggregate_weather_for_launches,
     join_launch_stats_weather_with_actuals,
-    one_hot_encode_categorical_columns
+    one_hot_encode_categorical_columns,
+    convert_bool_to_int
 )
-from modeling import (assign_modeling_roles, 
-                      prepare_image_data, 
-                      train_and_evaluate_model
+from modeling import (
+    assign_modeling_roles, 
+    prepare_image_data,
+    define_and_compile_cnn_model,
+    define_gradient_boosting_model,
+    train_and_evaluate_cnn_model,
+    train_and_evaluate_gb_model,
+    ensemble_predictions
 )
 from utils import generate_evaluation_table, integrate_image_data
 
 # --- Imports ---
 import yaml
 import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
 
 # --- Load Data ---
+print("\nLoading data...")
+print("--------------------")
+
 with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
@@ -38,6 +44,9 @@ watch_warning_folder_path = f"{config['data']['raw_satellite_dir']}/{config['dat
 sbcape_cin_folder_path = f"{config['data']['raw_satellite_dir']}/{config['data']['sbcape_cin_imagery_folder']}"
 
 # --- Data Processing ---
+print("\nProcessing data...")
+print("--------------------")
+
 clean_launch_stats_df = process_launch_stats_data(launch_stats_df)
 clean_launch_forecast_df = process_launch_forecast_data(launch_forecast_df)
 clean_weather_hourly_df = process_weather_hourly_data(weather_hourly_df)
@@ -53,43 +62,47 @@ save_datasets(clean_launch_stats_df, clean_launch_forecast_df)
 launch_stats_and_weather_df = aggregate_weather_for_launches(clean_weather_hourly_df, clean_launch_stats_df)
 launch_data = join_launch_stats_weather_with_actuals(launch_stats_and_weather_df, clean_launch_forecast_df)
 launch_data = one_hot_encode_categorical_columns(launch_data)
+launch_data = convert_bool_to_int(launch_data)
 launch_data = integrate_image_data(launch_data, config)
 
 
 # --- Modeling ---
+print("\nModeling...")
+print("--------------------")
 
 # Define path to HDF5 file and columns with image references
 hdf5_path = f"{config['data']['processed_dir']}/{config['data']['hdf5_file']}"
 image_series_columns = ['GOES_REF', 'SHEAR_REF', 'WARNING_REF', 'SBCAPE_CIN_REF']
 
 # Assign roles to the features and target for modeling
+print("\nAssigning roles to the features and target for modeling...")
 X_train, X_test, y_train, y_test = assign_modeling_roles(launch_data, hdf5_path)
 X_image_train, X_image_test = prepare_image_data(X_train, X_test, image_series_columns, hdf5_path)
 
-# Define and train the CNN model
-cnn_model = Sequential([
-    Conv2D(32, (3, 3), activation='relu', input_shape=(224, 224, 3)),
-    MaxPooling2D((2, 2)),
-    Conv2D(64, (3, 3), activation='relu'),
-    MaxPooling2D((2, 2)),
-    Conv2D(64, (3, 3), activation='relu'),
-    Flatten(),
-    Dense(64, activation='relu'),
-    Dense(1, activation='sigmoid')
-])
-
-cnn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+# Define and compile the CNN model
+print("\nDefining and compiling the CNN model...")
+cnn_model = define_and_compile_cnn_model()
 
 # Train and evaluate the CNN model
-cnn_metrics = train_and_evaluate_model(cnn_model, X_train, X_test, y_train, y_test, X_image_train, X_image_test)
+print("\nTraining and evaluating the CNN model...")
+cnn_metrics, y_pred_cnn = train_and_evaluate_cnn_model(cnn_model, X_image_train, X_image_test, y_train, y_test)
 
 # Define and train the Gradient Boosting model
-gb_model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3, random_state=42)
+print("\nDefining the Gradient Boosting model...")
+gb_model = define_gradient_boosting_model()
 
 # Train and evaluate the Gradient Boosting model
-gb_metrics = train_and_evaluate_model(gb_model, X_train, X_test, y_train, y_test, X_image_train, X_image_test)
+print("\nTraining and evaluating the Gradient Boosting model...")
+gb_metrics, y_pred_gb = train_and_evaluate_gb_model(gb_model, X_train, X_test, y_train, y_test)
+
+# Ensemble the predictions
+print("\nEnsembling the predictions...")
+y_pred_ensemble = ensemble_predictions(y_pred_cnn, y_pred_gb)
 
 # --- Evaluation ---
+print("\nEvaluation...")
+print("--------------------")
+
 # Generate the evaluation table
 results_df = pd.DataFrame([
     {'Model': 'CNN', **cnn_metrics},

@@ -1,4 +1,16 @@
 # --- Imports ---
+import tensorflow as tf
+
+# GPU Memory Growth
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+
+# --- Imports (continued) ---
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -138,39 +150,47 @@ def define_and_compile_cnn_model():
     Returns:
     - cnn_model: The compiled CNN model.
     """
-    # Define the input shape for a single image
-    image_shape = (224, 224, 3)
 
-    # Define the input layers and convolutional layers for each image series
-    input_layers = []
-    conv_layers = []
-    
-    # Create input and convolutional layers for each image series
-    for _ in range(len(image_series_columns)):
-        input_layer = Input(shape=(7,) + image_shape)
-        input_layers.append(input_layer)
+    # Define the strategy for distributed training
+    strategy = tf.distribute.MirroredStrategy()
+
+    # Define the CNN model within the strategy scope
+    with strategy.scope():
+
+        # Define the input shape for a single image
+        image_shape = (224, 224, 3)
+
+        # Define the input layers and convolutional layers for each image series
+        input_layers = []
+        conv_layers = []
         
-        conv_layer = TimeDistributed(Conv2D(32, (3, 3), activation='relu'))(input_layer)
-        conv_layer = TimeDistributed(MaxPooling2D((2, 2)))(conv_layer)
-        conv_layer = TimeDistributed(Conv2D(64, (3, 3), activation='relu'))(conv_layer)
-        conv_layer = TimeDistributed(MaxPooling2D((2, 2)))(conv_layer)
-        conv_layer = TimeDistributed(Conv2D(64, (3, 3), activation='relu'))(conv_layer)
-        conv_layer = TimeDistributed(Flatten())(conv_layer)
+        # Create input and convolutional layers for each image series
+        for _ in range(len(image_series_columns)):
+            input_layer = Input(shape=(7,) + image_shape)
+            input_layers.append(input_layer)
+            
+            # Define the convolutional layers
+            conv_layer = TimeDistributed(Conv2D(16, (3, 3), activation='relu'))(input_layer)
+            conv_layer = TimeDistributed(MaxPooling2D((2, 2)))(conv_layer)
+            conv_layer = TimeDistributed(Conv2D(32, (3, 3), activation='relu'))(conv_layer)
+            conv_layer = TimeDistributed(MaxPooling2D((2, 2)))(conv_layer)
+            conv_layer = TimeDistributed(Conv2D(32, (3, 3), activation='relu'))(conv_layer)
+            conv_layer = TimeDistributed(Flatten())(conv_layer)
+            
+            conv_layers.append(conv_layer)
         
-        conv_layers.append(conv_layer)
-    
-    # Merge the convolutional layers
-    merged = concatenate(conv_layers)
-    
-    # Add a recurrent layer to process the sequence of images
-    lstm_layer = LSTM(64)(merged)
-    
-    dense_layer = Dense(64, activation='relu')(lstm_layer)
-    output_layer = Dense(1, activation='sigmoid')(dense_layer)
-    
-    # Define the CNN model
-    cnn_model = Model(inputs=input_layers, outputs=output_layer)
-    cnn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        # Merge the convolutional layers
+        merged = concatenate(conv_layers)
+        
+        # Add a recurrent layer to process the sequence of images
+        lstm_layer = LSTM(64)(merged)
+        
+        dense_layer = Dense(64, activation='relu')(lstm_layer)
+        output_layer = Dense(1, activation='sigmoid')(dense_layer)
+        
+        # Define the CNN model
+        cnn_model = Model(inputs=input_layers, outputs=output_layer)
+        cnn_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     
     return cnn_model
 
@@ -204,7 +224,7 @@ def train_and_evaluate_cnn_model(model, X_image_train, X_image_test, y_train, y_
     X_test_inputs = [X_image_test[column].reshape((-1, 7, 224, 224, 3)) for column in image_series_columns]
     
     # Train the CNN model using image data
-    model.fit(X_train_inputs, y_train)
+    model.fit(X_train_inputs, y_train, batch_size=32)
     
     # Make predictions on the test image data
     y_pred_cnn = model.predict(X_test_inputs)

@@ -131,3 +131,8 @@ wx_data/
 
 # Data
 data/
+
+# Other
+.keras/
+.lightning_studio/
+.streamlit/

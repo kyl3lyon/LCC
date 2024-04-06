@@ -136,3 +136,4 @@ data/
 .keras/
 .lightning_studio/
 .streamlit/
+.vscode/

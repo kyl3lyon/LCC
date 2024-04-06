@@ -222,12 +222,17 @@ def train_and_evaluate_cnn_model(model, X_image_train, X_image_test, y_train, y_
     # Prepare the input data for training
     X_train_inputs = [X_image_train[column].reshape((-1, 7, 224, 224, 3)) for column in image_series_columns]
     X_test_inputs = [X_image_test[column].reshape((-1, 7, 224, 224, 3)) for column in image_series_columns]
+
+    steps_per_epoch = len(X_image_train['GOES_REF']) // 32
     
     # Train the CNN model using image data
     model.fit(X_train_inputs, y_train, batch_size=32)
     
     # Make predictions on the test image data
-    y_pred_cnn = model.predict(X_test_inputs)
+    y_pred_proba_cnn = model.predict(X_test_inputs)
+
+    # Convert probabilities to class labels
+    y_pred_cnn = (y_pred_proba_cnn >= 0.5).astype(int).flatten()
     
     end_time = time.time()
     

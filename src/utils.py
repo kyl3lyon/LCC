@@ -17,7 +17,7 @@ def generate_evaluation_table(results_df):
     markdown_table += "|:-------------------------------|----------:|------------------:|----------:|----------:|-----------:|\n"
 
     for index, row in results_df.iterrows():
-        model_name = row['Model'].ljust(30)  # Adjust the number to fit your longest model name
+        model_name = row['Model'].ljust(30)
         accuracy = f"{row['Accuracy']:.6f}".rjust(9)
         bal_accuracy = f"{row['Balanced Accuracy']:.6f}".rjust(17)
         roc_auc = f"{row['ROC AUC']:.6f}".rjust(9)

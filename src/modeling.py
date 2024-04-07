@@ -226,11 +226,14 @@ def train_and_evaluate_cnn_model(model, X_image_train, X_image_test, y_train, y_
     steps_per_epoch = len(X_image_train['GOES_REF']) // 32
     
     # Train the CNN model using image data
-    model.fit(X_train_inputs, y_train, batch_size=32)
+    model.fit(X_train_inputs, y_train, batch_size=32, steps_per_epoch=steps_per_epoch)
+
+    # Verify the model's output
+    print(model.summary())
     
     # Make predictions on the test image data
     y_pred_proba_cnn = model.predict(X_test_inputs)
-
+    
     # Convert probabilities to class labels
     y_pred_cnn = (y_pred_proba_cnn >= 0.5).astype(int).flatten()
     
@@ -300,8 +303,8 @@ def ensemble_predictions(y_pred_cnn, y_pred_gb):
     """
 
     # Apply a weighted average to the predictions
-    cnn_weight = 0.7
-    gb_weight = 0.3
+    cnn_weight = 0.5
+    gb_weight = 0.5
     y_pred_ensemble = (cnn_weight * y_pred_cnn) + (gb_weight * y_pred_gb)
 
     # Apply a threshold to convert probabilities to binary predictions
